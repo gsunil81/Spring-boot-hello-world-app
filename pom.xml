@@ -13,7 +13,7 @@
     </parent>
 
     <groupId>com.example</groupId>
-    <artifactId>simple-hello-rashi</artifactId>
+    <artifactId>simple-hello-sunil</artifactId>
     <version>1.0.0</version>
 
     <properties>
