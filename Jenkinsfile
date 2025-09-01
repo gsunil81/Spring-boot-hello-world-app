@@ -11,7 +11,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "sunil8179/springboot-app:v${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS_ID = 'sunil-docker' // ✅ updated credential ID
+        DOCKER_CREDENTIALS_ID = 'docker-sunil' // ✅ updated to match your Jenkins credential
         KUBECONFIG_CREDENTIALS_ID = 'eks-kubeconfig'
         NAMESPACE = 'sunil'
     }
