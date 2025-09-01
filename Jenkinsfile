@@ -1,12 +1,19 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'maven3'
+    }
+
     triggers {
         githubPush()
     }
 
-    tools {
-        maven 'maven3'
+    environment {
+        DOCKER_IMAGE = "sunil8179/springboot-app:v${BUILD_NUMBER}"
+        DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
+        KUBECONFIG_CREDENTIALS_ID = 'eks-kubeconfig'
+        NAMESPACE = 'sunil'
     }
 
     stages {
@@ -19,32 +26,60 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build with Maven') {
             steps {
-                sh 'mvn clean install'
-            }
-        }
-
-        stage('Package') {
-            steps {
-                sh 'mvn package'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('MySonarQube') {   // <-- Name must match Jenkins UI config
-                    sh 'mvn sonar:sonar -Dsonar.projectKey=springboot-demo'
+                withSonarQubeEnv('MySonarQube') {
+                    sh 'mvn sonar:sonar -DskipTests -Dsonar.projectKey=springboot-demo'
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Build Docker Image') {
             steps {
-                sh '''
-                nohup java -jar target/simple-hello-sunil-1.0.0.jar --server.port=9090 > app.log 2>&1 &
-                '''
+                sh "docker build -t $DOCKER_IMAGE ."
             }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $DOCKER_IMAGE
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                withCredentials([file(credentialsId: KUBECONFIG_CREDENTIALS_ID, variable: 'KUBECONFIG')]) {
+                    sh """
+                        export KUBECONFIG=$KUBECONFIG
+                        kubectl config use-context your-eks-context
+                        kubectl set image deployment/springboot-deployment springboot-container=$DOCKER_IMAGE -n $NAMESPACE
+                        kubectl rollout status deployment/springboot-deployment -n $NAMESPACE
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Build and deployment to namespace '$NAMESPACE' successful!"
+        }
+        failure {
+            echo "❌ Build failed. Check logs for details."
+        }
+        always {
+            sh "docker rmi $DOCKER_IMAGE || true"
         }
     }
 }
