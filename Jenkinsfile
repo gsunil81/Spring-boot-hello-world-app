@@ -2,11 +2,11 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven3'
+        maven 'maven3' // Matches your configured Maven tool name in Jenkins
     }
 
     triggers {
-        githubPush()
+        githubPush() // Auto-trigger on GitHub commits
     }
 
     environment {
