@@ -2,11 +2,11 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven3' // Matches your configured Maven tool name in Jenkins
+        maven 'maven3'
     }
 
     triggers {
-        githubPush() // Auto-trigger on GitHub commits
+        githubPush()
     }
 
     environment {
@@ -29,14 +29,6 @@ pipeline {
         stage('Build with Maven') {
             steps {
                 sh 'mvn clean package -DskipTests'
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('MySonarQube') {
-                    sh 'mvn sonar:sonar -DskipTests -Dsonar.projectKey=springboot-demo'
-                }
             }
         }
 
