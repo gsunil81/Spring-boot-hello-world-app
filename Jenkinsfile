@@ -11,7 +11,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "sunil8179/springboot-app:v${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
+        DOCKER_CREDENTIALS_ID = 'sunil-docker' // ✅ updated credential ID
         KUBECONFIG_CREDENTIALS_ID = 'eks-kubeconfig'
         NAMESPACE = 'sunil'
     }
@@ -20,7 +20,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    credentialsId: 'local-jenkins-sunil',
+                    credentialsId: 'sunil_git-cred',
                     url: 'https://github.com/gsunil81/Spring-boot-hello-world-app.git'
                 sh 'ls -la'
             }
