@@ -11,8 +11,8 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "sunil8179/springboot-app:v${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS_ID = 'docker-sunil'          // DockerHub credentials
-        KUBECONFIG_CREDENTIALS_ID = 'eks-kubeconfig'    // kubeconfig file credential
+        DOCKER_CREDENTIALS_ID = 'docker-sunil'
+        KUBECONFIG_CREDENTIALS_ID = 'eks-kubeconfig'
         NAMESPACE = 'sunil'
     }
 
@@ -34,7 +34,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $DOCKER_IMAGE ."
+                sh "docker build -t $DOCKER_IMAGE -f dockerfile ."
             }
         }
 
@@ -55,8 +55,8 @@ pipeline {
                     sh '''
                         export KUBECONFIG=$KUBECONFIG
                         kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
-                        kubectl apply -f K8S/deployment.yaml
-                        kubectl apply -f K8S/service.yaml
+                        kubectl apply -f deployment.yaml
+                        kubectl apply -f service.yaml
                     '''
                 }
             }
@@ -65,7 +65,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ Deployment to EKS namespace '$NAMESPACE' successful!"
+            echo "✅ Spring Boot app deployed successfully to EKS namespace '$NAMESPACE'!"
         }
         failure {
             echo "❌ Deployment failed. Please check the logs."
