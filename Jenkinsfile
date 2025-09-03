@@ -70,8 +70,13 @@ pipeline {
         stage('Deploy to EKS') {
             steps {
                 sh '''
+                    echo "🔧 Ensuring namespace '$NAMESPACE' exists..."
                     kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
+
+                    echo "📦 Replacing image placeholder in deployment.yaml..."
                     sed -i "s@<IMAGE_PLACEHOLDER>@$DOCKER_IMAGE@g" k8s/deployment.yaml
+
+                    echo "🚀 Applying deployment and service manifests..."
                     kubectl apply -n $NAMESPACE -f k8s/deployment.yaml
                     kubectl apply -n $NAMESPACE -f k8s/service.yaml
                 '''
@@ -80,14 +85,17 @@ pipeline {
 
         stage('Deploy Ingress') {
             steps {
-                sh 'kubectl apply -n $NAMESPACE -f k8s/ingress.yaml'
+                sh '''
+                    echo "🌐 Applying ingress manifest..."
+                    kubectl apply -n $NAMESPACE -f k8s/ingress.yaml
+                '''
             }
         }
 
         stage('Verify Ingress') {
             steps {
                 sh '''
-                    echo "Ingress DNS:"
+                    echo "🔍 Ingress DNS:"
                     kubectl get ingress springboot-ingress -n $NAMESPACE -o jsonpath="{.status.loadBalancer.ingress[0].hostname}"
                 '''
             }
