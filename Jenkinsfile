@@ -10,10 +10,13 @@ pipeline {
     }
 
     environment {
+        AWS_REGION = "eu-west-2"
+        EKS_CLUSTER = "batch4-Team3-cluster"
         DOCKER_IMAGE = "sunil8179/springboot-app:v${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS_ID = 'docker-sunil'
-        KUBECONFIG_CREDENTIALS_ID = 'eks-kubeconfig'
-        NAMESPACE = 'sunil'
+        DOCKER_CREDENTIALS_ID = "docker-sunil"
+        AWS_ACCESS_KEY_ID_CRED = "aws-access-key-id"
+        AWS_SECRET_ACCESS_KEY_CRED = "aws-secret-access-key"
+        NAMESPACE = "sunil"
     }
 
     stages {
@@ -22,7 +25,6 @@ pipeline {
                 git branch: 'main',
                     credentialsId: 'sunil_git-cred',
                     url: 'https://github.com/gsunil81/Spring-boot-hello-world-app.git'
-                sh 'ls -la'
             }
         }
 
@@ -34,7 +36,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $DOCKER_IMAGE -f dockerfile ."
+                sh "docker build -t $DOCKER_IMAGE -f Dockerfile ."
             }
         }
 
@@ -49,16 +51,45 @@ pipeline {
             }
         }
 
-        stage('Deploy to EKS') {
+        stage('Configure AWS & Kubeconfig') {
             steps {
-                withCredentials([file(credentialsId: KUBECONFIG_CREDENTIALS_ID, variable: 'KUBECONFIG')]) {
+                withCredentials([
+                    string(credentialsId: AWS_ACCESS_KEY_ID_CRED, variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: AWS_SECRET_ACCESS_KEY_CRED, variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
                     sh '''
-                        export KUBECONFIG=$KUBECONFIG
-                        kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws configure set default.region $AWS_REGION
+                        aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER
                     '''
                 }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                sh '''
+                    kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
+                    sed -i "s@<IMAGE_PLACEHOLDER>@$DOCKER_IMAGE@g" k8s/deployment.yaml
+                    kubectl apply -n $NAMESPACE -f k8s/deployment.yaml
+                    kubectl apply -n $NAMESPACE -f k8s/service.yaml
+                '''
+            }
+        }
+
+        stage('Deploy Ingress') {
+            steps {
+                sh 'kubectl apply -n $NAMESPACE -f k8s/ingress.yaml'
+            }
+        }
+
+        stage('Verify Ingress') {
+            steps {
+                sh '''
+                    echo "Ingress DNS:"
+                    kubectl get ingress springboot-ingress -n $NAMESPACE -o jsonpath="{.status.loadBalancer.ingress[0].hostname}"
+                '''
             }
         }
     }
@@ -69,6 +100,9 @@ pipeline {
         }
         failure {
             echo "❌ Deployment failed. Please check the logs."
+        }
+        cleanup {
+            cleanWs()
         }
     }
 }
