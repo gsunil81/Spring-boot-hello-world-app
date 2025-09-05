@@ -17,6 +17,8 @@ pipeline {
         AWS_ACCESS_KEY_ID_CRED = "aws-access-key-id"
         AWS_SECRET_ACCESS_KEY_CRED = "aws-secret-access-key"
         NAMESPACE = "sunil"
+        HELM_RELEASE_NAME = "springboot-app"
+        HELM_CHART_PATH = "./helm-chart"
     }
 
     stages {
@@ -67,34 +69,27 @@ pipeline {
             }
         }
 
-        stage('Deploy to EKS') {
+        stage('Deploy via Helm') {
             steps {
                 sh '''
                     echo "🔧 Ensuring namespace '$NAMESPACE' exists..."
                     kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
 
-                    echo "📦 Replacing image placeholder in deployment.yaml..."
-                    sed -i "s@<IMAGE_PLACEHOLDER>@$DOCKER_IMAGE@g" k8s/deployment.yaml
-
-                    echo "🚀 Applying deployment and service manifests..."
-                    kubectl apply -n $NAMESPACE -f k8s/deployment.yaml
-                    kubectl apply -n $NAMESPACE -f k8s/service.yaml
+                    echo "🚀 Deploying Helm chart..."
+                    helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
+                        --namespace $NAMESPACE \
+                        --set image.repository=${DOCKER_IMAGE%:*} \
+                        --set image.tag=${DOCKER_IMAGE##*:}
                 '''
             }
         }
 
-        stage('Deploy Ingress') {
+        stage('Verify Deployment') {
             steps {
                 sh '''
-                    echo "🌐 Applying ingress manifest..."
-                    kubectl apply -n $NAMESPACE -f k8s/ingress.yaml
-                '''
-            }
-        }
+                    echo "🔍 Checking Helm release status..."
+                    helm status $HELM_RELEASE_NAME --namespace $NAMESPACE
 
-        stage('Verify Ingress') {
-            steps {
-                sh '''
                     echo "🔍 Ingress DNS:"
                     kubectl get ingress springboot-app-ingress -n $NAMESPACE -o jsonpath="{.status.loadBalancer.ingress[0].hostname}"
                 '''
@@ -104,7 +99,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ Spring Boot app deployed successfully to EKS namespace '$NAMESPACE'!"
+            echo "✅ Spring Boot app deployed successfully via Helm to EKS namespace '$NAMESPACE'!"
         }
         failure {
             echo "❌ Deployment failed. Please check the logs."
