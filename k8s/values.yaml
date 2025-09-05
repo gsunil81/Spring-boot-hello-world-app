@@ -1,0 +1,11 @@
+image:
+  repository: sunil8179/springboot-app
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  host: springboot.local
