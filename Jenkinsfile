@@ -12,9 +12,6 @@ pipeline {
     environment {
         DOCKER_IMAGE = "sunil8179/springboot-app:v${BUILD_NUMBER}"
         DOCKER_CREDENTIALS_ID = "docker-sunil"
-        NAMESPACE = "sunil"
-        HELM_RELEASE_NAME = "springboot-app"
-        HELM_CHART_PATH = "./helm-chart"
     }
 
     stages {
@@ -49,43 +46,25 @@ pipeline {
             }
         }
 
-        stage('Deploy via Helm') {
+        stage('Pull Docker Image') {
             steps {
-                sh '''
-                    echo "🔧 Ensuring namespace '$NAMESPACE' exists..."
-                    kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
-
-                    echo "🚀 Deploying Helm chart to local Kubernetes..."
-                    helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
-                        --namespace $NAMESPACE \
-                        --set image.repository=${DOCKER_IMAGE%:*} \
-                        --set image.tag=${DOCKER_IMAGE##*:}
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                    echo "🔍 Helm release status:"
-                    helm status $HELM_RELEASE_NAME --namespace $NAMESPACE
-
-                    echo "🔍 Service details:"
-                    kubectl get svc -n $NAMESPACE
-
-                    echo "🔍 Pod status:"
-                    kubectl get pods -n $NAMESPACE
-                '''
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                        docker pull $DOCKER_IMAGE
+                        docker run -d --name springboot-app -p 8080:8080 $DOCKER_IMAGE
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ Spring Boot app deployed successfully via Helm to local Kubernetes namespace '$NAMESPACE'!"
+            echo "✅ Spring Boot app pulled and running as Docker container!"
         }
         failure {
-            echo "❌ Deployment failed. Please check the logs."
+            echo "❌ Pipeline failed. Please check the logs."
         }
         cleanup {
             cleanWs()
